@@ -1,0 +1,79 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LOGIC LORDS | Smart Energy Governance</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #060a14;
+      --card-bg: rgba(13, 20, 37, 0.4);
+      --accent-teal: #2dd4bf;
+      --accent-emerald: #10b981;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 20% 20%, rgba(45, 212, 191, 0.03) 0%, transparent 40%),
+        radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.03) 0%, transparent 40%);
+      color: #e2e8f0;
+      overflow-x: hidden;
+      margin: 0;
+    }
+    .font-orbitron { font-family: 'Orbitron', sans-serif; }
+    .glass-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .glass-card:hover {
+      border-color: rgba(45, 212, 191, 0.3);
+      box-shadow: 0 15px 50px -10px rgba(45, 212, 191, 0.1);
+    }
+    .text-glow-teal { text-shadow: 0 0 15px rgba(45, 212, 191, 0.6); }
+    .text-glow-emerald { text-shadow: 0 0 15px rgba(16, 185, 129, 0.6); }
+    
+    /* Hide scrollbar */
+    ::-webkit-scrollbar { display: none; }
+    body { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Custom Animations */
+    @keyframes pulse-teal {
+      0%, 100% { box-shadow: 0 0 10px rgba(45, 212, 191, 0.4); }
+      50% { box-shadow: 0 0 20px rgba(45, 212, 191, 0.8); }
+    }
+    .pro-badge-glow {
+      animation: pulse-teal 2s infinite;
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.41.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.574.0",
+    "framer-motion": "https://esm.sh/framer-motion@^12.34.1",
+    "chart.js": "https://esm.sh/chart.js@^4.5.1",
+    "react-chartjs-2": "https://esm.sh/react-chartjs-2@^5.3.1",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.4"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

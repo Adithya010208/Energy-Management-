@@ -1,0 +1,5 @@
+{
+  "name": "Smart Energy Governance Dashboard",
+  "description": "A futuristic, AI-driven energy monitoring and governance dashboard designed for institutional sustainability and SDG 7 alignment. Features real-time ThingSpeak integration and Gemini-powered predictive analytics.",
+  "requestFramePermissions": []
+}
