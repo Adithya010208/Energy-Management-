@@ -16,8 +16,25 @@ export interface ThingSpeakResponse {
   feeds: ThingSpeakFeed[];
 }
 
+export interface NodeData {
+  id: string;
+  name: string;
+  type: 'live' | 'simulated';
+  power: number;
+  current: number;
+  energy: number;
+  efficiency: number; // 0-100 score
+  status: 'active' | 'warning' | 'idle';
+}
+
 export interface GovernanceInsights {
   prediction: number;
   riskLevel: 'Safe' | 'Warning' | 'Critical';
   recommendation: string;
+}
+
+export interface OptimizationStrategy {
+  name: string;
+  status: 'Active' | 'Standby' | 'Optimizing';
+  impact: string;
 }
