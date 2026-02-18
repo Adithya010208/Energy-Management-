@@ -11,8 +11,8 @@ export interface AIResponse {
 export const getGovernanceAdvice = async (energyUsed: number, prediction: number, budget: number): Promise<AIResponse> => {
   const now = Date.now();
   
-  // Throttle locally to avoid accidental spam
-  if (now - lastRequestTime < 3000) {
+  // Throttle locally to 10 seconds to respect API rate limits
+  if (now - lastRequestTime < 10000) {
     return {
       text: localStorage.getItem('last_ai_insight') || "Synthesizing real-time telemetry...",
       status: 'active'
@@ -21,21 +21,15 @@ export const getGovernanceAdvice = async (energyUsed: number, prediction: number
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  // Using gemini-3-pro-preview for advanced competition-level reasoning
-  const modelName = 'gemini-3-pro-preview'; 
+  // Using gemini-3-flash-preview for higher rate limits and faster response times
+  // suitable for high-frequency dashboard updates.
+  const modelName = 'gemini-3-flash-preview'; 
 
-  const prompt = `Act as an AI Strategic Energy Governance Engine.
-    Institutional Context: RMK Engineering College - LOGIC LORDS
-    Project Focus: SDG 7 (Affordable & Clean Energy)
-    
-    Current Metrics:
-    - Real-time Consumption: ${energyUsed.toFixed(2)} kWh
-    - Projected Monthly usage: ${prediction.toFixed(2)} kWh
-    - Budget Threshold: ${budget} kWh
-    
-    Current Status: ${prediction > budget ? 'CRITICAL VARIANCE DETECTED (High Risk of Budget Overflow)' : 'OPTIMAL PERFORMANCE (Within Sustainability Threshold)'}
-    
-    Task: Provide a high-impact, professional governance recommendation (max 20 words) for a technical jury. Focus on load optimization, SDG alignment, and institutional scalability.`;
+  const prompt = `Act as an AI Strategic Energy Governance Engine for LOGIC LORDS.
+    Context: RMK Engineering College Energy Monitoring.
+    Metrics: ${energyUsed.toFixed(2)} kWh used, ${prediction.toFixed(2)} kWh projected (Budget: ${budget} kWh).
+    Status: ${prediction > budget ? 'CRITICAL VARIANCE' : 'OPTIMAL'}.
+    Task: Provide a high-impact, professional governance recommendation (max 15 words) for a technical jury. Focus on load optimization and institutional scalability.`;
 
   try {
     lastRequestTime = now;
@@ -47,20 +41,20 @@ export const getGovernanceAdvice = async (energyUsed: number, prediction: number
     const text = response.text.trim();
     localStorage.setItem('last_ai_insight', text);
     
-    return { text, status: 'pro' };
+    return { text, status: 'active' };
   } catch (error: any) {
     console.error('Gemini API Error:', error);
     const errorMessage = error?.message || "";
     
     if (errorMessage.includes("quota") || errorMessage.includes("429")) {
       return {
-        text: localStorage.getItem('last_ai_insight') || "System metrics nominal. AI governance engine awaiting next cycle.",
+        text: localStorage.getItem('last_ai_insight') || "System metrics nominal. AI governance engine cooling down.",
         status: 'limited'
       };
     }
 
     return {
-      text: "Neural link established. Baseline governance protocols active.",
+      text: localStorage.getItem('last_ai_insight') || "Neural link established. Baseline governance protocols active.",
       status: 'error'
     };
   }

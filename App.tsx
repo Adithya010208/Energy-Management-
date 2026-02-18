@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Zap, 
   Activity, 
@@ -11,25 +11,23 @@ import {
   Globe,
   BrainCircuit,
   Star,
-  Award,
-  TrendingUp,
-  TreePine,
   LayoutDashboard,
   Box,
   Server,
   Building,
   Radio,
-  ArrowRight,
   ShieldCheck,
   Network,
   Wind,
   Trophy,
-  ZapOff,
+  TreePine,
   ClipboardCheck,
   Flame,
-  Gauge
+  Gauge,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
-import { motion, animate, AnimatePresence } from 'framer-motion';
+import { motion, animate } from 'framer-motion';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -42,9 +40,9 @@ import {
   Filler,
   Legend,
 } from 'chart.js';
-import { Line, Bar } from 'react-chartjs-2';
+import { Bar } from 'react-chartjs-2';
 import { fetchLastFeed, fetchHistory } from './services/thingSpeakService';
-import { getGovernanceAdvice } from './services/geminiService';
+import { getGovernanceAdvice, AIResponse } from './services/geminiService';
 import { ThingSpeakFeed, NodeData, OptimizationStrategy } from './types';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Filler, Legend);
@@ -52,8 +50,8 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 const BUDGET_LIMIT = 100;
 const DAYS_PASSED = 10;
 const CARBON_FACTOR = 0.82;
-const AI_INTERVAL = 300000;
-const PEAK_THRESHOLD = 700; // Watts
+const AI_INTERVAL = 120000; // 2 minutes
+const PEAK_THRESHOLD = 700; 
 
 const AnimatedCounter = ({ value, decimals = 1, fromZero = true }: { value: number; decimals?: number; fromZero?: boolean }) => {
   const [displayValue, setDisplayValue] = useState(0);
@@ -79,6 +77,36 @@ const EfficiencyBadge = ({ score }: { score: number }) => {
     </div>
   );
 };
+
+const MetricCard = ({ icon, label, value, unit, color }: { icon: React.ReactNode; label: string; value: number; unit: string; color: string }) => (
+  <div className="glass-card p-6 rounded-2xl bg-slate-900/40 border border-white/10 hover:translate-y-[-4px] hover:border-indigo-500/30 transition-all shadow-lg">
+    <div className={`p-2.5 rounded-xl bg-white/5 w-fit mb-4 ${color} shadow-inner`}>
+      {icon}
+    </div>
+    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{label}</p>
+    <div className="flex items-baseline gap-1">
+      <span className="text-3xl md:text-4xl font-bold text-white tracking-tighter">
+        <AnimatedCounter value={value} decimals={label.includes('Load') ? 0 : 2} />
+      </span>
+      <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">{unit}</span>
+    </div>
+  </div>
+);
+
+const ImpactMetric = ({ icon: Icon, label, value, unit, color }: { icon: React.ElementType; label: string; value: number; unit: string; color: string }) => (
+  <div className="text-center p-8 rounded-[2rem] bg-black/30 border border-white/10 space-y-4 hover:border-indigo-500/20 transition-colors shadow-2xl">
+    <div className={`mx-auto w-14 h-14 rounded-[1.25rem] flex items-center justify-center bg-black/50 border border-white/5 shadow-inner ${color}`}>
+      <Icon size={28} />
+    </div>
+    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{label}</p>
+    <div className="flex items-baseline justify-center gap-2">
+      <span className="text-4xl md:text-5xl font-black text-white font-orbitron tracking-tighter">
+        <AnimatedCounter value={value} decimals={1} />
+      </span>
+      <span className={`text-[10px] font-bold uppercase tracking-widest ${color}`}>{unit}</span>
+    </div>
+  </div>
+);
 
 const NodeCard: React.FC<{ data: NodeData; isHighest: boolean }> = ({ data, isHighest }) => (
   <motion.div 
@@ -136,10 +164,8 @@ const NodeCard: React.FC<{ data: NodeData; isHighest: boolean }> = ({ data, isHi
 
 const App: React.FC = () => {
   const [data, setData] = useState<ThingSpeakFeed | null>(null);
-  const [history, setHistory] = useState<ThingSpeakFeed[]>([]);
-  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [aiStatus, setAiStatus] = useState<AIResponse['status']>('active');
   const [aiRecommendation, setAiRecommendation] = useState(localStorage.getItem('last_ai_insight') || "Synthesizing Campus Governance Strategy...");
-  const [aiStatus, setAiStatus] = useState<'active' | 'limited' | 'error' | 'loading'>('loading');
   const [logs, setLogs] = useState<string[]>(["[KERNEL] Governance v4.0 Active", "[MODEL] Loading Phase Alignment Engines..."]);
   const [peakStreak, setPeakStreak] = useState(0);
   const [patternDetected, setPatternDetected] = useState(false);
@@ -158,22 +184,19 @@ const App: React.FC = () => {
 
   const stats = useMemo(() => {
     let current = 0, power = 0, energy = 0;
-    if (isDemoMode || (!data && history.length === 0)) {
-      current = 1.2 + Math.random() * 0.8;
-      power = 350 + Math.random() * 300;
-      energy = 25 + Math.random() * 40;
-    } else if (data) {
+    if (data) {
       current = parseFloat(data.field1) || 0;
       power = parseFloat(data.field2) || 0;
       energy = parseFloat(data.field3) || 0;
+    } else {
+      current = 1.2 + Math.random() * 0.8;
+      power = 350 + Math.random() * 300;
+      energy = 25 + Math.random() * 40;
     }
     
-    // Efficiency calculation: Higher power usage relative to mean reduces score
     const liveEfficiency = Math.max(0, Math.min(100, 100 - ((power / 1000) * 40)));
-    
     const prediction = (energy / DAYS_PASSED) * 30;
     const carbon = energy * CARBON_FACTOR;
-    const progress = Math.min(100, (energy / BUDGET_LIMIT) * 100);
     const annualCarbon = carbon * 12;
     const treesEquivalent = annualCarbon / 21;
     
@@ -185,11 +208,11 @@ const App: React.FC = () => {
     const institutionalStars = Math.ceil(avgEfficiency / 20);
 
     return { 
-      current, power, energy, prediction, carbon, progress, 
+      current, power, energy, prediction, carbon, 
       annualCarbon, treesEquivalent,
       allNodes, highestPowerNode, totalCampusPower, avgEfficiency, institutionalStars
     };
-  }, [data, history, isDemoMode, simNodes]);
+  }, [data, simNodes]);
 
   const isHighRisk = stats.prediction > BUDGET_LIMIT;
 
@@ -203,8 +226,6 @@ const App: React.FC = () => {
     if (feed) {
       setData(feed);
       const curPower = parseFloat(feed.field2) || 0;
-      
-      // Pattern Detection Logic
       if (curPower > PEAK_THRESHOLD) {
         setPeakStreak(prev => {
           const next = prev + 1;
@@ -220,7 +241,6 @@ const App: React.FC = () => {
       }
       addLog(`Node Sync: OK`);
     }
-    if (feeds && feeds.length > 0) setHistory(feeds);
 
     setSimNodes(prev => prev.map(node => {
       const variation = (Math.random() - 0.5) * 40;
@@ -232,12 +252,15 @@ const App: React.FC = () => {
   }, [addLog]);
 
   const fetchAIInsights = useCallback(async () => {
-    setAiStatus('loading');
-    addLog("Core Governance: Processing multi-node heuristics...");
+    addLog("Core Governance: Refreshing Neural Link...");
     const result = await getGovernanceAdvice(stats.energy, stats.prediction, BUDGET_LIMIT);
     setAiRecommendation(result.text);
-    setAiStatus(result.status === 'pro' ? 'active' : result.status);
-    addLog("AI: Optimization broadcast synced.");
+    setAiStatus(result.status);
+    if (result.status === 'limited') {
+      addLog("AI WARNING: Quota limit reached. Showing cached insight.");
+    } else {
+      addLog("AI: Governance sync complete.");
+    }
   }, [stats.energy, stats.prediction, addLog]);
 
   useEffect(() => {
@@ -341,9 +364,6 @@ const App: React.FC = () => {
                 <h3 className="text-[10px] md:text-xs font-bold font-orbitron tracking-widest uppercase flex items-center gap-2">
                   <BarChart3 className="text-indigo-400" size={16} /> Comparative Distribution Map
                 </h3>
-                <div className="px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[8px] font-black text-indigo-400 uppercase tracking-widest">
-                  Multi-Class Heuristics
-                </div>
               </div>
               <div className="flex-1 min-h-[250px] mb-8">
                 <Bar data={chartData} options={{
@@ -356,12 +376,22 @@ const App: React.FC = () => {
                   }
                 }} />
               </div>
-              <div className="p-5 rounded-2xl bg-black/40 border border-indigo-500/20 flex flex-col md:flex-row items-start gap-4 group">
-                <div className="shrink-0 p-3 bg-indigo-500/10 rounded-xl group-hover:bg-indigo-500/20 transition-all">
-                  <BrainCircuit className="text-indigo-400" size={24} />
+              
+              {/* AI Governance Insight Card with Status Feedback */}
+              <div className={`p-5 rounded-2xl bg-black/40 border transition-colors duration-500 flex flex-col md:flex-row items-start gap-4 group ${aiStatus === 'limited' ? 'border-amber-500/30' : aiStatus === 'error' ? 'border-rose-500/30' : 'border-indigo-500/20'}`}>
+                <div className={`shrink-0 p-3 rounded-xl transition-all ${aiStatus === 'limited' ? 'bg-amber-500/10 text-amber-400' : aiStatus === 'error' ? 'bg-rose-500/10 text-rose-400' : 'bg-indigo-500/10 text-indigo-400'}`}>
+                  <BrainCircuit size={24} className={aiStatus === 'active' ? 'animate-pulse' : ''} />
                 </div>
-                <div>
-                  <p className="text-[9px] md:text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">AI Governance Insight</p>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className={`text-[9px] md:text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${aiStatus === 'limited' ? 'text-amber-500' : aiStatus === 'error' ? 'text-rose-500' : 'text-indigo-500'}`}>
+                      AI Governance Insight
+                      {aiStatus === 'active' ? <Wifi size={10} className="animate-pulse" /> : <WifiOff size={10} />}
+                    </p>
+                    <span className={`text-[7px] font-black px-1.5 py-0.5 rounded uppercase tracking-[0.2em] ${aiStatus === 'limited' ? 'bg-amber-500/10 text-amber-500' : aiStatus === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                      {aiStatus === 'limited' ? 'Quota Limited - Using Cache' : aiStatus === 'active' ? 'Neural Link Active' : 'System Baseline'}
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-300 leading-relaxed italic">
                     "{aiRecommendation}"
                   </p>
@@ -405,12 +435,7 @@ const App: React.FC = () => {
                 <ShieldCheck className="text-emerald-400 shrink-0" size={16} /> Predictor & Governance Protocol
               </h3>
               <div className="space-y-8">
-                <div className="flex justify-between items-center px-1">
-                  <span className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest">Sustainability Baseline</span>
-                  <span className="text-xs font-bold text-emerald-400">100 kWh</span>
-                </div>
                 <div className="p-8 rounded-2xl bg-black/40 border border-white/5 text-center relative overflow-hidden shadow-inner">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent" />
                   <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-3">Estimated Billing Cycle End</p>
                   <div className="text-5xl font-black font-orbitron text-white mb-2 tracking-tighter">
                     <AnimatedCounter value={stats.prediction} />
@@ -421,7 +446,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 
-                {/* Institutional Rating Breakdown */}
                 <div className="bg-white/5 border border-white/10 p-5 rounded-2xl space-y-4">
                   <div className="flex justify-between items-center">
                     <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Campus Efficiency</p>
@@ -434,14 +458,10 @@ const App: React.FC = () => {
                       className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500" 
                     />
                   </div>
-                  <p className="text-[8px] text-slate-500 font-medium leading-relaxed italic">
-                    Current prototype maintains an elite Tier Energy Rating. {patternDetected ? 'Alert: Optimization active to mitigate peak patterns.' : 'All subsystems within governance parameters.'}
-                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Smart Recommendations Log */}
             <div className="glass-card p-6 rounded-3xl bg-black/40 border border-white/5 min-h-[160px]">
               <div className="flex items-center gap-3 mb-4">
                 <ClipboardCheck className="text-emerald-400" size={18} />
@@ -451,10 +471,6 @@ const App: React.FC = () => {
                 <div className="flex items-center gap-3 text-[10px] text-slate-400">
                   <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
                   <span>Verify Node RMK-E-01 phase sync.</span>
-                </div>
-                <div className="flex items-center gap-3 text-[10px] text-slate-400">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                  <span>SDG 7 baseline reporting exported.</span>
                 </div>
                 {patternDetected && (
                   <div className="flex items-center gap-3 text-[10px] text-rose-400 font-bold">
@@ -467,9 +483,7 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* SECTION 5: CARBON & IMPACT DASHBOARD */}
         <section className="glass-card p-8 md:p-14 rounded-[3rem] bg-indigo-600/5 border border-indigo-500/20 grid grid-cols-1 lg:grid-cols-2 gap-10 md:gap-14 items-center relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[100px] pointer-events-none" />
           <div className="space-y-6 relative z-10">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 rounded-full border border-emerald-500/20 shadow-lg shadow-emerald-500/5">
               <Trophy className="w-4 h-4 text-emerald-400" />
@@ -477,12 +491,12 @@ const App: React.FC = () => {
             </div>
             <h2 className="text-3xl md:text-5xl font-bold font-orbitron text-white tracking-tight leading-tight">Environmental <br/><span className="text-emerald-400 italic">Governance Platform</span></h2>
             <p className="text-slate-400 text-xs md:text-sm leading-relaxed max-w-lg">
-              Empowering RMK Engineering College with deep-learning heuristics for peak-shaving and energy decentralization. Logic Lords' v4.0 architecture ensures absolute institutional transparency.
+              Empowering RMK Engineering College with deep-learning heuristics for peak-shaving and energy decentralization. Logic Lords v4.0 architecture ensures absolute institutional transparency.
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 md:gap-10 relative z-10">
-            <ImpactMetric icon={<Wind />} label="Carbon Avoidance" value={stats.annualCarbon} unit="kg CO₂" color="text-emerald-400" />
-            <ImpactMetric icon={<TreePine />} label="Forestry Equivalent" value={stats.treesEquivalent} unit="Trees/Yr" color="text-indigo-400" />
+            <ImpactMetric icon={Wind} label="Carbon Avoidance" value={stats.annualCarbon} unit="kg CO₂" color="text-emerald-400" />
+            <ImpactMetric icon={TreePine} label="Forestry Equivalent" value={stats.treesEquivalent} unit="Trees/Yr" color="text-indigo-400" />
           </div>
         </section>
       </main>
@@ -497,40 +511,9 @@ const App: React.FC = () => {
         <p className="text-[10px] font-black font-orbitron tracking-[0.4em] md:tracking-[0.6em] text-slate-500 uppercase">
           LOGIC LORDS • ENTERPRISE GOVERNANCE v4.0 • RMK ENGINEERING COLLEGE
         </p>
-        <p className="text-[9px] text-slate-600 font-bold uppercase tracking-[0.25em] mt-4 flex items-center justify-center gap-4">
-          <span>SDG 7 ALIGNMENT</span>
-          <span className="w-1 h-1 rounded-full bg-slate-700" />
-          <span>CLEAN ENERGY INTELLIGENCE</span>
-        </p>
       </footer>
     </div>
   );
 };
-
-const MetricCard = ({ icon, label, value, unit, color }: { icon: any; label: string; value: number; unit: string; color: string }) => (
-  <div className="glass-card p-6 rounded-2xl bg-slate-900/40 border border-white/10 hover:translate-y-[-4px] hover:border-indigo-500/30 transition-all shadow-lg">
-    <div className={`p-2.5 rounded-xl bg-white/5 w-fit mb-4 ${color} shadow-inner`}>
-      {icon}
-    </div>
-    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{label}</p>
-    <div className="flex items-baseline gap-1">
-      <span className="text-3xl md:text-4xl font-bold text-white tracking-tighter"><AnimatedCounter value={value} decimals={label.includes('Load') ? 0 : 2} /></span>
-      <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">{unit}</span>
-    </div>
-  </div>
-);
-
-const ImpactMetric = ({ icon, label, value, unit, color }: { icon: any; label: string; value: number; unit: string; color: string }) => (
-  <div className="text-center p-8 rounded-[2rem] bg-black/30 border border-white/10 space-y-4 hover:border-indigo-500/20 transition-colors shadow-2xl">
-    <div className={`mx-auto w-14 h-14 rounded-[1.25rem] flex items-center justify-center bg-black/50 border border-white/5 shadow-inner ${color}`}>
-      {React.cloneElement(icon as React.ReactElement, { size: 28 })}
-    </div>
-    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{label}</p>
-    <div className="flex items-baseline justify-center gap-2">
-      <span className="text-4xl md:text-5xl font-black text-white font-orbitron tracking-tighter"><AnimatedCounter value={value} decimals={1} /></span>
-      <span className={`text-[10px] font-bold uppercase tracking-widest ${color}`}>{unit}</span>
-    </div>
-  </div>
-);
 
 export default App;
