@@ -38,7 +38,8 @@ export const getGovernanceAdvice = async (energyUsed: number, prediction: number
       contents: prompt,
     });
     
-    const text = response.text.trim();
+    // Fixed TS18048: 'response.text' is possibly 'undefined'
+    const text = response.text?.trim() || "Institutional load nominal. Strategy: Continue baseline monitoring.";
     localStorage.setItem('last_ai_insight', text);
     
     return { text, status: 'active' };
